@@ -37,7 +37,9 @@ ImageDX::ImageDX(ID3D11Device *pDeviceD3D, ID3D11DeviceContext *pContext, IDXGIS
 
     int nFrames = bVsync_ ? 3 : 1;
 
-    pTexture_[0] = pTexture_[1] = pTexture_[2] = 0;
+	pTexture_[0] = 0;
+	pTexture_[1] = 0;
+	pTexture_[2] = 0;
  
     for (int field_num = 0; field_num < nFrames; field_num++)
     {

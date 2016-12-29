@@ -208,9 +208,6 @@
     <ClCompile Include="VideoSource.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="data\plush1_720p_10s.m2v" />
-  </ItemGroup>
-  <ItemGroup>
     <ClInclude Include="..\common\inc\cudaModuleMgr.h" />
     <ClInclude Include="..\common\inc\dynlink_builtin_types.h" />
     <ClInclude Include="cudaProcessFrame.h" />
