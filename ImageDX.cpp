@@ -40,7 +40,12 @@ ImageDX::ImageDX(ID3D11Device *pDeviceD3D, ID3D11DeviceContext *pContext, IDXGIS
 	pTexture_[0] = 0;
 	pTexture_[1] = 0;
 	pTexture_[2] = 0;
- 
+	pTexture_[3] = 0;
+	pTexture_[4] = 0;
+	pTexture_[5] = 0;
+
+	nFrames *= 2;
+
     for (int field_num = 0; field_num < nFrames; field_num++)
     {
 		D3D11_TEXTURE2D_DESC desc = {
@@ -57,7 +62,7 @@ ImageDX::ImageDX(ID3D11Device *pDeviceD3D, ID3D11DeviceContext *pContext, IDXGIS
 ImageDX::~ImageDX()
 {
     int nFrames = bVsync_ ? 3 : 1;
-
+	nFrames *= 2;
     for (int field_num=0; field_num < nFrames; field_num++)
     {
         unregisterAsCudaResource(field_num);
@@ -112,21 +117,21 @@ const
 }
 
 void
-ImageDX::map(CUarray *pBackBufferArray, int active_field)
+ImageDX::map(CUarray *pBackBufferArray, int active_field, int offset)
 {
     int nFrames = bVsync_ ? 3 : 1;
 
-    checkCudaErrors(cuGraphicsMapResources(nFrames, aCudaResource_, 0));
-    checkCudaErrors(cuGraphicsSubResourceGetMappedArray(pBackBufferArray, aCudaResource_[active_field], 0, 0));
+	checkCudaErrors(cuGraphicsMapResources(nFrames, aCudaResource_ + offset, 0));
+	checkCudaErrors(cuGraphicsSubResourceGetMappedArray(pBackBufferArray, aCudaResource_[active_field + offset], 0, 0));
     assert(0 != *pBackBufferArray);
 }
 
 void
-ImageDX::unmap(int active_field)
+ImageDX::unmap(int active_field, int offset)
 {
     int nFrames = bVsync_ ? 3 : 1;
 
-    checkCudaErrors(cuGraphicsUnmapResources(nFrames, aCudaResource_, 0));
+	checkCudaErrors(cuGraphicsUnmapResources(nFrames, aCudaResource_ + offset, 0));
 }
 
 void
