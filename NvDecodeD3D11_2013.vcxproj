@@ -211,6 +211,7 @@
     <ClInclude Include="..\common\inc\cudaModuleMgr.h" />
     <ClInclude Include="..\common\inc\dynlink_builtin_types.h" />
     <ClInclude Include="cudaProcessFrame.h" />
+    <ClInclude Include="DecodeMgr.h" />
     <ClInclude Include="FrameQueue.h" />
     <ClInclude Include="ImageDX.h" />
     <ClInclude Include="VideoDecoder.h" />

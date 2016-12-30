@@ -53,12 +53,6 @@ const char *sSDKname     = "NVDecodeD3D11";
 #define VIDEO_SOURCE_FILE_0 "11111.mp4"
 #define VIDEO_SOURCE_FILE_1 "22222.mp4"
 
-#ifdef _DEBUG
-#define ENABLE_DEBUG_OUT    0
-#else
-#define ENABLE_DEBUG_OUT    0
-#endif
-
 StopWatchInterface *frame_timer  = NULL;
 StopWatchInterface *global_timer = NULL;
 
@@ -76,9 +70,6 @@ bool                g_bWaived     = false;
 
 HWND                g_hWnd = NULL;
 WNDCLASSEX          *g_wc = NULL;
-
-int   *pArgc = NULL;
-char **pArgv = NULL;
 
 CUvideoctxlock       g_CtxLock = NULL;
 
@@ -115,7 +106,6 @@ CUVIDEOFORMAT g_stFormat;
 
 //std::string sFileName;
 std::vector<std::string> sFileName;
-char exec_path[256];
 
 unsigned int g_nWindowWidth  = 0;
 unsigned int g_nWindowHeight = 0;
@@ -129,7 +119,7 @@ unsigned int g_fpsCount = 0;      // FPS count for averaging
 unsigned int g_fpsLimit = 16;     // FPS limit for sampling timer;
 
 // Forward declarations
-bool    initD3D11(HWND hWnd, int argc, char **argv, int *pbTCC);
+bool    initD3D11(HWND hWnd, int *pbTCC);
 HRESULT initD3D11Surface(unsigned int nWidth, unsigned int nHeight);
 HRESULT freeDestSurface();
 void shutdown();
@@ -139,20 +129,16 @@ bool loadVideoSource(const char *video_file,
                      unsigned int &dispWidth, unsigned int &dispHeight);
 void initCudaVideo();
 
+HRESULT initCudaResources(int bTCC);
 void freeCudaResources(bool bDestroyContext);
 
 bool copyDecodedFrameToTexture(unsigned int &nRepeats, int bUseInterop, int *pbIsProgressive);
-void cudaPostProcessFrame(CUdeviceptr *ppDecodedFrame, size_t nDecodedPitch,
-                          CUdeviceptr *ppTextureData,  size_t nTexturePitch,
-                          CUmodule cuModNV12toARGB,
-                          CUfunction fpCudaKernel, CUstream streamID);
 void cudaPostProcessFrame(CUdeviceptr *ppDecodedFrame, size_t nDecodedPitch,
                           CUarray array,
                           CUmodule cuModNV12toARGB,
                           CUfunction fpCudaKernel, CUstream streamID);
 HRESULT drawScene(int field_num);
 HRESULT cleanup(bool bDestroyContext);
-HRESULT initCudaResources(int argc, char **argv, int bUseInterop, int bTCC);
 
 void renderVideoFrame(HWND hWnd);
 
@@ -163,14 +149,13 @@ void renderVideoFrame(HWND hWnd);
 #ifndef STRNCASECMP
 #define STRNCASECMP _strnicmp
 #endif
-#else // Linux
-#ifndef STRCASECMP
-#define STRCASECMP  strcasecmp
 #endif
-#ifndef STRNCASECMP
-#define STRNCASECMP strncasecmp
-#endif
-#endif
+
+class VideoResouuce{
+public:
+
+
+};
 
 
 LRESULT WINAPI MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -273,30 +258,13 @@ void computeFPS(HWND hWnd)
     sdkStartTimer(&frame_timer);
 }
 
-HRESULT initCudaResources(int argc, char **argv, int bTCC)
+HRESULT initCudaResources( int bTCC)
 {
     HRESULT hr = S_OK;
-
     CUdevice cuda_device;
 
-    if (checkCmdLineFlag(argc, (const char **)argv, "device"))
-    {
-        cuda_device = getCmdLineArgumentInt(argc, (const char **) argv, "device");
-        cuda_device = findCudaDeviceDRV(argc, (const char **)argv);
-
-        if (cuda_device < 0)
-        {
-            printf("No CUDA Capable devices found, exiting...\n");
-            exit(EXIT_SUCCESS);
-        }
-
-        checkCudaErrors(cuDeviceGet(&g_oDevice, cuda_device));
-    }
-    else
-    {
-        cuda_device = gpuGetMaxGflopsDeviceIdDRV();
-        checkCudaErrors(cuDeviceGet(&g_oDevice, cuda_device));
-    }
+	cuda_device = gpuGetMaxGflopsDeviceIdDRV();
+	checkCudaErrors(cuDeviceGet(&g_oDevice, cuda_device));    
 
     // get compute capabilities and the devicename
     int major, minor;
@@ -318,11 +286,11 @@ HRESULT initCudaResources(int argc, char **argv, int bTCC)
         // Initialize CUDA releated Driver API (32-bit or 64-bit), depending the platform running
         if (sizeof(void *) == 4)
         {
-            g_pCudaModule = new CUmoduleManager("NV12ToARGB_drvapi_Win32.ptx", exec_path, 2, 2, 2);
+			g_pCudaModule = new CUmoduleManager("NV12ToARGB_drvapi_Win32.ptx", ".", 2, 2, 2);
         }
         else
         {
-            g_pCudaModule = new CUmoduleManager("NV12ToARGB_drvapi_x64.ptx", exec_path, 2, 2, 2);
+            g_pCudaModule = new CUmoduleManager("NV12ToARGB_drvapi_x64.ptx", ".", 2, 2, 2);
         }
     }
     catch (char const *p_file)
@@ -392,165 +360,8 @@ bool loadFile(const char* fileName){
 
 	// default video file loaded by this sample
 	sFileName.push_back(fileName);
-}
 
-void parseCommandLineArguments(int argc, char *argv[])
-{
-    if (g_bLoop == false)
-    {
-        g_bAutoQuit = true;
-    }
-
-	char video_file[256];
-
-	strcpy(video_file, sdkFindFilePath(VIDEO_SOURCE_FILE_0, argv[0]));
-	
-	loadFile(video_file);
-	
-	strcpy(video_file, sdkFindFilePath(VIDEO_SOURCE_FILE_1, argv[0]));
-
-	loadFile(video_file);
-
-    // store the current path so we can reinit the CUDA context
-    strcpy(exec_path, argv[0]);
-}
-
-int main(int argc, char *argv[])
-{
-    pArgc = &argc;
-    pArgv = argv;
-
-    sdkCreateTimer(&frame_timer);
-    sdkResetTimer(&frame_timer);
-
-    sdkCreateTimer(&global_timer);
-    sdkResetTimer(&global_timer);
-
-    // parse the command line arguments
-    parseCommandLineArguments(argc, argv);
-
-    // create window (after we know the size of the input file size)
-    WNDCLASSEX wc = { sizeof(WNDCLASSEX), CS_CLASSDC, MsgProc, 0L, 0L,
-                      GetModuleHandle(NULL), NULL, NULL, NULL, NULL,
-                      sAppName, NULL
-                    };
-    RegisterClassEx(&wc);
-	g_wc = &wc;
-
-    // figure out the window size we must create to get a *client* area
-    // that is of the size requested by m_dimensions.
-    RECT adjustedWindowSize;
-    DWORD dwWindowStyle;
-
-    // Initialize the CUDA and NVDECODE
-    typedef HMODULE CUDADRIVER;
-    CUDADRIVER hHandleDriver = 0;
-    CUresult cuResult;
-    cuResult = cuInit    (0, __CUDA_API_VERSION, hHandleDriver);
-    cuResult = cuvidInit (0);
-
-    // Find out the video size
-    g_bIsProgressive = loadVideoSource(sFileName[0].c_str(),
-                                       g_nVideoWidth, g_nVideoHeight,
-                                       g_nWindowWidth, g_nWindowHeight);
-
-	// Create the Windows
-	{
-        dwWindowStyle = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN | WS_CLIPSIBLINGS;
-        SetRect(&adjustedWindowSize, 0, 0, g_nVideoWidth  , g_nVideoHeight);
-        AdjustWindowRect(&adjustedWindowSize, dwWindowStyle, false);
-
-        g_nWindowWidth  = adjustedWindowSize.right  - adjustedWindowSize.left;
-        g_nWindowHeight = adjustedWindowSize.bottom - adjustedWindowSize.top;
-
-        // Create the application's window
-        g_hWnd = CreateWindow(wc.lpszClassName, sAppName,
-                            dwWindowStyle,
-                            0, 0,
-                            1920,
-                            960,
-                            NULL, NULL, wc.hInstance, NULL);
-    }
-
-    int bTCC = 0;
-    // Initialize Direct3D
-    if (initD3D11(g_hWnd, argc, argv, &bTCC) == false)
-    {
-        g_bAutoQuit = true;
-        g_bWaived   = true;
-		shutdown();
-    }    
-
-    // If we are using TCC driver, then graphics interop must be disabled
-    if (bTCC)
-    {
-		assert(0);
-    }
-
-    // Initialize CUDA/D3D11 context and other video memory resources
-    if (initCudaResources(argc, argv, bTCC) == E_FAIL)
-    {
-        g_bAutoQuit  = true;
-        g_bException = true;
-        g_bWaived    = true;
-		shutdown();
-    }
-
-    g_pVideoSource->start();
-    g_bRunning = true;
-
-    if (!bTCC)
-    {
-        ShowWindow(g_hWnd, SW_SHOWDEFAULT);
-        UpdateWindow(g_hWnd);
-    }
-
-    // the main loop
-    sdkStartTimer(&frame_timer);
-    sdkStartTimer(&global_timer);
-    sdkResetTimer(&global_timer);
-
-    {
-        // Standard windows loop
-        while (!g_bDone)
-        {
-            MSG msg;
-            ZeroMemory(&msg, sizeof(msg));
-
-            while (msg.message!=WM_QUIT)
-            {
-                if (PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE))
-                {
-                    TranslateMessage(&msg);
-                    DispatchMessage(&msg);
-                }
-                else
-                {
-                    renderVideoFrame(g_hWnd);
-                }
-
-                if (g_bAutoQuit && g_bDone)
-                {
-                    break;
-                }
-            }
-        } // while loop
-    }
-
-    // we only want to record this once
-    if (total_time == 0.0f)
-    {
-        total_time = sdkGetTimerValue(&global_timer);
-    }
-    sdkStopTimer(&global_timer);
-
-    g_pFrameQueue->endDecode();
-    g_pVideoSource->stop();
-
-    printStatistics();
-
-	g_bWaived = false;
-	shutdown();
+	return true;
 }
 
 void shutdown()
@@ -596,7 +407,7 @@ inline std::string wcs2mbstring(const wchar_t *wcs)
 
 // Initialize Direct3D
 bool
-initD3D11(HWND hWnd, int argc, char **argv, int *pbTCC)
+initD3D11(HWND hWnd, int *pbTCC)
 {
     int dev, device_count = 0;
     char device_name[256];
@@ -957,50 +768,6 @@ HRESULT drawScene(int field_num)
     return S_OK;
 }
 
-// Release all previously initd objects
-HRESULT cleanup(bool bDestroyContext)
-{
-    if (bDestroyContext)
-    {
-        // Attach the CUDA Context (so we may properly free memroy)
-        checkCudaErrors(cuCtxPushCurrent(g_oContext));
-		
-		if (g_pRgba) {
-			checkCudaErrors(cuMemFree(g_pRgba));
-		}
-
-        // Detach from the Current thread
-        checkCudaErrors(cuCtxPopCurrent(NULL));
-    }
-
-    if (g_pImageDX)
-    {
-        delete g_pImageDX;
-        g_pImageDX = NULL;
-    }
-
-    freeCudaResources(bDestroyContext);
-
-    // destroy the D3D device
-    if (g_pD3DDevice)
-    {
-        g_pD3DDevice->Release();
-        g_pD3DDevice = NULL;
-    }
-
-	if (g_pContext) {
-		g_pContext->Release();
-		g_pContext = NULL;
-	}
-
-	if (g_pSwapChain) {
-		g_pSwapChain->Release();
-		g_pSwapChain = NULL;
-	}
-
-    return S_OK;
-}
-
 // Launches the CUDA kernels to fill in the texture data
 void renderVideoFrame(HWND hWnd)
 {
@@ -1036,6 +803,193 @@ void renderVideoFrame(HWND hWnd)
             computeFPS(hWnd);
         }
     }
+}
+
+int main()
+{
+	sdkCreateTimer(&frame_timer);
+	sdkResetTimer(&frame_timer);
+
+	sdkCreateTimer(&global_timer);
+	sdkResetTimer(&global_timer);
+
+	if (g_bLoop == false){
+		g_bAutoQuit = true;
+	}
+
+	char video_file[256];
+	strcpy(video_file, sdkFindFilePath(VIDEO_SOURCE_FILE_0, "."));
+	loadFile(video_file);
+
+	strcpy(video_file, sdkFindFilePath(VIDEO_SOURCE_FILE_1, "."));
+	loadFile(video_file);
+
+	// create window (after we know the size of the input file size)
+	WNDCLASSEX wc = { sizeof(WNDCLASSEX), CS_CLASSDC, MsgProc, 0L, 0L,
+		GetModuleHandle(NULL), NULL, NULL, NULL, NULL,
+		sAppName, NULL
+	};
+	RegisterClassEx(&wc);
+	g_wc = &wc;
+
+	// figure out the window size we must create to get a *client* area
+	// that is of the size requested by m_dimensions.
+	RECT adjustedWindowSize;
+	DWORD dwWindowStyle;
+
+	// Initialize the CUDA and NVDECODE
+	typedef HMODULE CUDADRIVER;
+	CUDADRIVER hHandleDriver = 0;
+	CUresult cuResult;
+	cuResult = cuInit(0, __CUDA_API_VERSION, hHandleDriver);
+	cuResult = cuvidInit(0);
+
+	// Find out the video size
+	g_bIsProgressive = loadVideoSource(sFileName[0].c_str(),
+		g_nVideoWidth, g_nVideoHeight,
+		g_nWindowWidth, g_nWindowHeight);
+
+	// Create the Windows
+	{
+		dwWindowStyle = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN | WS_CLIPSIBLINGS;
+		SetRect(&adjustedWindowSize, 0, 0, g_nVideoWidth, g_nVideoHeight);
+		AdjustWindowRect(&adjustedWindowSize, dwWindowStyle, false);
+
+		g_nWindowWidth = adjustedWindowSize.right - adjustedWindowSize.left;
+		g_nWindowHeight = adjustedWindowSize.bottom - adjustedWindowSize.top;
+
+		// Create the application's window
+		g_hWnd = CreateWindow(wc.lpszClassName, sAppName,
+			dwWindowStyle,
+			0, 0,
+			1920,
+			960,
+			NULL, NULL, wc.hInstance, NULL);
+	}
+
+	int bTCC = 0;
+	// Initialize Direct3D
+	if (initD3D11(g_hWnd, &bTCC) == false)
+	{
+		g_bAutoQuit = true;
+		g_bWaived = true;
+		shutdown();
+	}
+
+	// If we are using TCC driver, then graphics interop must be disabled
+	if (bTCC)
+	{
+		assert(0);
+	}
+
+	// Initialize CUDA/D3D11 context and other video memory resources
+	if (initCudaResources(bTCC) == E_FAIL)
+	{
+		g_bAutoQuit = true;
+		g_bException = true;
+		g_bWaived = true;
+		shutdown();
+	}
+
+	g_pVideoSource->start();
+	g_bRunning = true;
+
+	if (!bTCC)
+	{
+		ShowWindow(g_hWnd, SW_SHOWDEFAULT);
+		UpdateWindow(g_hWnd);
+	}
+
+	// the main loop
+	sdkStartTimer(&frame_timer);
+	sdkStartTimer(&global_timer);
+	sdkResetTimer(&global_timer);
+
+	{
+		// Standard windows loop
+		while (!g_bDone)
+		{
+			MSG msg;
+			ZeroMemory(&msg, sizeof(msg));
+
+			while (msg.message != WM_QUIT)
+			{
+				if (PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE))
+				{
+					TranslateMessage(&msg);
+					DispatchMessage(&msg);
+				}
+				else
+				{
+					renderVideoFrame(g_hWnd);
+				}
+
+				if (g_bAutoQuit && g_bDone)
+				{
+					break;
+				}
+			}
+		} // while loop
+	}
+
+	// we only want to record this once
+	if (total_time == 0.0f)
+	{
+		total_time = sdkGetTimerValue(&global_timer);
+	}
+	sdkStopTimer(&global_timer);
+
+	g_pFrameQueue->endDecode();
+	g_pVideoSource->stop();
+
+	printStatistics();
+
+	g_bWaived = false;
+	shutdown();
+}
+
+// Release all previously initd objects
+HRESULT cleanup(bool bDestroyContext)
+{
+	if (bDestroyContext)
+	{
+		// Attach the CUDA Context (so we may properly free memroy)
+		checkCudaErrors(cuCtxPushCurrent(g_oContext));
+
+		if (g_pRgba) {
+			checkCudaErrors(cuMemFree(g_pRgba));
+		}
+
+		// Detach from the Current thread
+		checkCudaErrors(cuCtxPopCurrent(NULL));
+	}
+
+	if (g_pImageDX)
+	{
+		delete g_pImageDX;
+		g_pImageDX = NULL;
+	}
+
+	freeCudaResources(bDestroyContext);
+
+	// destroy the D3D device
+	if (g_pD3DDevice)
+	{
+		g_pD3DDevice->Release();
+		g_pD3DDevice = NULL;
+	}
+
+	if (g_pContext) {
+		g_pContext->Release();
+		g_pContext = NULL;
+	}
+
+	if (g_pSwapChain) {
+		g_pSwapChain->Release();
+		g_pSwapChain = NULL;
+	}
+
+	return S_OK;
 }
 
 // The window's message handler
