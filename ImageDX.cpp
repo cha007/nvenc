@@ -40,11 +40,6 @@ ImageDX::ImageDX(ID3D11Device *pDeviceD3D, ID3D11DeviceContext *pContext, IDXGIS
 	pTexture_[0] = 0;
 	pTexture_[1] = 0;
 	pTexture_[2] = 0;
-	pTexture_[3] = 0;
-	pTexture_[4] = 0;
-	pTexture_[5] = 0;
-
-	nFrames *= 2;
 
     for (int field_num = 0; field_num < nFrames; field_num++)
     {
@@ -62,7 +57,6 @@ ImageDX::ImageDX(ID3D11Device *pDeviceD3D, ID3D11DeviceContext *pContext, IDXGIS
 ImageDX::~ImageDX()
 {
     int nFrames = bVsync_ ? 3 : 1;
-	nFrames *= 2;
     for (int field_num=0; field_num < nFrames; field_num++)
     {
         unregisterAsCudaResource(field_num);
@@ -117,21 +111,21 @@ const
 }
 
 void
-ImageDX::map(CUarray *pBackBufferArray, int active_field, int offset)
+ImageDX::map(CUarray *pBackBufferArray, int active_field)
 {
     int nFrames = bVsync_ ? 3 : 1;
 
-	checkCudaErrors(cuGraphicsMapResources(nFrames, aCudaResource_ + offset, 0));
-	checkCudaErrors(cuGraphicsSubResourceGetMappedArray(pBackBufferArray, aCudaResource_[active_field + offset], 0, 0));
+	checkCudaErrors(cuGraphicsMapResources(nFrames, aCudaResource_, 0));
+	checkCudaErrors(cuGraphicsSubResourceGetMappedArray(pBackBufferArray, aCudaResource_[active_field], 0, 0));
     assert(0 != *pBackBufferArray);
 }
 
 void
-ImageDX::unmap(int active_field, int offset)
+ImageDX::unmap(int active_field)
 {
     int nFrames = bVsync_ ? 3 : 1;
 
-	checkCudaErrors(cuGraphicsUnmapResources(nFrames, aCudaResource_ + offset, 0));
+	checkCudaErrors(cuGraphicsUnmapResources(nFrames, aCudaResource_, 0));
 }
 
 void
@@ -174,40 +168,6 @@ ImageDX::clear(unsigned char nClearColor)
 
 	checkCudaErrors(cuMemFree(pData));
 }
-
-// void
-// ImageDX::setColor(CUdeviceptr pData)
-// {
-// 	// Can only be cleared if surface is a CUDA resource
-// 	assert(bIsCudaResource_);
-// 
-// 	int nFrames = bVsync_ ? 3 : 1;
-// 	size_t       nSize = nWidth_ * nHeight_ * 4;
-// 
-// 	checkCudaErrors(cuGraphicsMapResources(nFrames, aCudaResource_, 0));
-// 	for (int field_num = 0; field_num < nFrames; field_num++)
-// 	{
-// 		//checkCudaErrors(cuGraphicsResourceGetMappedPointer(&pData, &nSize, aCudaResource_[field_num]));
-// 		CUarray array;
-// 		checkCudaErrors(cuGraphicsSubResourceGetMappedArray(&array, aCudaResource_[field_num], 0, 0));
-// 		assert(0 != array);
-// 
-// 		CUDA_MEMCPY2D memcpy2D = { 0 };
-// 		memcpy2D.srcMemoryType = CU_MEMORYTYPE_DEVICE;
-// 		memcpy2D.srcDevice = pData;
-// 		memcpy2D.srcPitch = nWidth_ * 4;
-// 		memcpy2D.dstMemoryType = CU_MEMORYTYPE_ARRAY;
-// 		memcpy2D.dstArray = array;
-// 		memcpy2D.dstPitch = nWidth_ * 4;
-// 		memcpy2D.WidthInBytes = nWidth_ * 4;
-// 		memcpy2D.Height = nHeight_;
-// 
-// 		// clear the surface to solid white
-// 		checkCudaErrors(cuMemcpy2D(&memcpy2D));
-// 	}
-// 
-// 	checkCudaErrors(cuGraphicsUnmapResources(nFrames, aCudaResource_, 0));
-// }
 
 unsigned int
 ImageDX::width()

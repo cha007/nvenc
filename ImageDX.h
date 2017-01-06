@@ -72,10 +72,10 @@ class ImageDX
         // Note:
         //      This method will fail, if this image is not a registered CUDA resource.
         void
-        map(CUarray *pBackBufferArray, int active_field = 0, int offset = 0);
+        map(CUarray *pBackBufferArray, int active_field = 0);
 
         void
-		unmap(int active_field = 0, int offset = 0);
+		unmap(int active_field = 0);
 
         // Clear the image.
         // Parameters:
@@ -106,9 +106,9 @@ class ImageDX
 		ID3D11Device *pDeviceD3D_;
 		ID3D11DeviceContext *pContext_;
 		IDXGISwapChain *pSwapChain_;
-        ID3D11Texture2D *pTexture_[6];
+        ID3D11Texture2D *pTexture_[3];
 		ID3D11Texture2D *pBackBuffer;
-        CUgraphicsResource aCudaResource_[6];
+        CUgraphicsResource aCudaResource_[3];
 
         unsigned int nWidth_;
         unsigned int nHeight_;

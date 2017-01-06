@@ -56,25 +56,6 @@ const char *sSDKname     = "NVDecodeD3D11";
 StopWatchInterface *frame_timer  = NULL;
 StopWatchInterface *global_timer = NULL;
 
-
-class VideoResource{
-public:
-	VideoResource(){
-
-	}
-
-	void start(){
-		;
-	}
-
-	void end(){
-		;
-	}
-private:
-
-};
-std::vector<VideoResource*>	inputResources;
-
 int                 g_DeviceID    = 0;
 bool                g_bDone       = false;
 bool                g_bRunning    = false;
@@ -98,6 +79,7 @@ FrameQueue    *g_pFrameQueue_0 = 0;
 VideoSource   *g_pVideoSource_0 = 0;
 VideoParser   *g_pVideoParser_0 = 0;
 VideoDecoder  *g_pVideoDecoder_0 = 0;
+
 FrameQueue    *g_pFrameQueue_1 = 0;
 VideoSource   *g_pVideoSource_1 = 0;
 VideoParser   *g_pVideoParser_1 = 0;
@@ -120,7 +102,7 @@ CUdevice           g_oDevice  = 0;
 eColorSpace        g_eColorSpace = ITU601;
 float              g_nHue        = 0.0f;
 
-ImageDX       *g_pImageDX      = 0;
+ImageDX       *g_pImageDX		= 0;
 CUdeviceptr    g_pRgba = 0;
 CUarray        g_backBufferArray = 0;
 
@@ -136,7 +118,9 @@ unsigned int g_FrameCount = 0;
 unsigned int g_DecodeFrameCount = 0;
 unsigned int g_fpsCount = 0;      // FPS count for averaging
 unsigned int g_fpsLimit = 16;     // FPS limit for sampling timer;
-CUdeviceptr    g_pInteropFrame[6] = { 0, 0, 0 , 0, 0, 0 }; // if we're using CUDA malloc
+CUdeviceptr    g_pInteropFrame_0[3] = { 0, 0, 0 }; // if we're using CUDA malloc
+CUdeviceptr    g_pInteropFrame_1[3] = { 0, 0, 0 }; // if we're using CUDA malloc
+CUdeviceptr    g_pInteropFrame_2[3] = { 0, 0, 0 }; // if we're using CUDA malloc
 // Forward declarations
 bool    initD3D11(HWND hWnd, int *pbTCC);
 void	shutdown();
@@ -378,16 +362,21 @@ HRESULT initCudaResources(int bTCC)
 
 	initD3D11Surface(g_pVideoDecoder_0->targetWidth(),	g_pVideoDecoder_0->targetHeight());
 	checkCudaErrors(cuMemAlloc(&g_pRgba, g_pVideoDecoder_0->targetWidth() * g_pVideoDecoder_0->targetHeight() * 4));
-	checkCudaErrors(cuMemAlloc(&g_pInteropFrame[0], g_pVideoDecoder_0->targetWidth() * g_pVideoDecoder_0->targetHeight() * 4));
-	checkCudaErrors(cuMemAlloc(&g_pInteropFrame[1], g_pVideoDecoder_0->targetWidth() * g_pVideoDecoder_0->targetHeight() * 4));
-	checkCudaErrors(cuMemAlloc(&g_pInteropFrame[2], g_pVideoDecoder_0->targetWidth() * g_pVideoDecoder_0->targetHeight() * 4));
-	checkCudaErrors(cuMemAlloc(&g_pInteropFrame[3], g_pVideoDecoder_0->targetWidth() * g_pVideoDecoder_0->targetHeight() * 4));
-	checkCudaErrors(cuMemAlloc(&g_pInteropFrame[4], g_pVideoDecoder_0->targetWidth() * g_pVideoDecoder_0->targetHeight() * 4));
-	checkCudaErrors(cuMemAlloc(&g_pInteropFrame[5], g_pVideoDecoder_0->targetWidth() * g_pVideoDecoder_0->targetHeight() * 4));
 
+	checkCudaErrors(cuMemAlloc(&g_pInteropFrame_0[0], g_pVideoDecoder_0->targetWidth() * g_pVideoDecoder_0->targetHeight() * 4));
+	checkCudaErrors(cuMemAlloc(&g_pInteropFrame_0[1], g_pVideoDecoder_0->targetWidth() * g_pVideoDecoder_0->targetHeight() * 4));
+	checkCudaErrors(cuMemAlloc(&g_pInteropFrame_0[2], g_pVideoDecoder_0->targetWidth() * g_pVideoDecoder_0->targetHeight() * 4));
+
+	checkCudaErrors(cuMemAlloc(&g_pInteropFrame_1[0], g_pVideoDecoder_0->targetWidth() * g_pVideoDecoder_0->targetHeight() * 4));
+	checkCudaErrors(cuMemAlloc(&g_pInteropFrame_1[1], g_pVideoDecoder_0->targetWidth() * g_pVideoDecoder_0->targetHeight() * 4));
+	checkCudaErrors(cuMemAlloc(&g_pInteropFrame_1[2], g_pVideoDecoder_0->targetWidth() * g_pVideoDecoder_0->targetHeight() * 4));
+
+	checkCudaErrors(cuMemAlloc(&g_pInteropFrame_2[0], g_pVideoDecoder_0->targetWidth() * g_pVideoDecoder_0->targetHeight() * 4));
+	checkCudaErrors(cuMemAlloc(&g_pInteropFrame_2[1], g_pVideoDecoder_0->targetWidth() * g_pVideoDecoder_0->targetHeight() * 4));
+	checkCudaErrors(cuMemAlloc(&g_pInteropFrame_2[2], g_pVideoDecoder_0->targetWidth() * g_pVideoDecoder_0->targetHeight() * 4));
 	CUcontext cuCurrent = NULL;
 	result = cuCtxPopCurrent(&cuCurrent);
-
+	cuCtxPushCurrent(g_oContext);//important!!!!!!!!
 	if (result != CUDA_SUCCESS)
 	{
 		printf("cuCtxPopCurrent: %d\n", result);
@@ -498,10 +487,17 @@ bool copyDecodedFrameToTexture(unsigned int &nRepeats, int bUseInterop, int *pbI
 				
 			// Final Stage: NV12toARGB color space conversion
 			CUresult eResult;
-			eResult = cudaLaunchNV12toARGBDrv(pDecodedFrame[active_field], nDecodedPitch,
-				g_pInteropFrame[active_field], nWidth * 4,
-				nWidth, nHeight, g_kernelNV12toARGB, 0);
-
+			if (offset != 3){
+				eResult = cudaLaunchNV12toARGBDrv(pDecodedFrame[active_field], nDecodedPitch,
+					g_pInteropFrame_0[active_field], nWidth * 4,
+					nWidth, nHeight, g_kernelNV12toARGB, 0);
+			}
+			else{
+				eResult = cudaLaunchNV12toARGBDrv(pDecodedFrame[active_field], nDecodedPitch,
+					g_pInteropFrame_1[active_field], nWidth * 4,
+					nWidth, nHeight, g_kernelNV12toARGB, 0);
+			}
+			
 			VideoDecoder->unmapFrame(pDecodedFrame[active_field]);
 			g_DecodeFrameCount++;
 		}
@@ -509,57 +505,6 @@ bool copyDecodedFrameToTexture(unsigned int &nRepeats, int bUseInterop, int *pbI
 		checkCudaErrors(cuCtxPopCurrent(NULL));
 		// release the frame, so it can be re-used in decoder
 		FrameQueue->releaseFrame(&oDisplayInfo);
-
-// 		for (int active_field = 0; active_field < nRepeats; active_field++)
-// 		{
-// 			unsigned int nWidth = 0;
-// 			unsigned int nHeight = 0;
-// 			nWidth = g_pVideoDecoder_0->targetWidth();
-// 			nHeight = g_pVideoDecoder_0->targetHeight();
-// 
-// 			g_backBufferArray = 0;
-// 			// map the texture surface
-// 			g_pImageDX->map(&g_backBufferArray, active_field, 0);
-// 			CUDA_MEMCPY2D memcpy2D = { 0 };
-// 			memcpy2D.srcMemoryType = CU_MEMORYTYPE_DEVICE;
-// 			memcpy2D.srcDevice = g_pInteropFrame[active_field];
-// 			memcpy2D.srcPitch = nWidth * 4;
-// 			memcpy2D.dstMemoryType = CU_MEMORYTYPE_ARRAY;
-// 			memcpy2D.dstArray = g_backBufferArray;
-// 			memcpy2D.dstPitch = nWidth * 4;
-// 			memcpy2D.WidthInBytes = nWidth * 4;
-// 			memcpy2D.Height = nHeight;
-// 
-// 			// clear the surface to solid white
-// 			checkCudaErrors(cuMemcpy2D(&memcpy2D));
-// 			// unmap the texture surface
-// 			g_pImageDX->unmap(active_field, 0);
-// 		}
-	}
-	if (isDequeueOK){
-		for (int active_field = 0; active_field < nRepeats; active_field++)
-		{
-			unsigned int nWidth = g_pVideoDecoder_0->targetWidth();
-			unsigned int nHeight = g_pVideoDecoder_0->targetHeight();
-
-			g_backBufferArray = 0;
-			// map the texture surface
-			g_pImageDX->map(&g_backBufferArray, active_field, offset);
- 			CUDA_MEMCPY2D memcpy2D = { 0 };
-			memcpy2D.srcMemoryType = CU_MEMORYTYPE_DEVICE;
-			memcpy2D.srcDevice = g_pInteropFrame[active_field];
-			memcpy2D.srcPitch = nWidth * 4;
-			memcpy2D.dstMemoryType = CU_MEMORYTYPE_ARRAY;
-			memcpy2D.dstArray = g_backBufferArray;
-			memcpy2D.dstPitch = nWidth * 4;
-			memcpy2D.WidthInBytes = nWidth * 4;
-			memcpy2D.Height = nHeight;
-
-			// clear the surface to solid white
-			checkCudaErrors(cuMemcpy2D(&memcpy2D));
-			// unmap the texture surface
-			g_pImageDX->unmap(active_field, offset);
-		}
 	}
 	else
 	{
@@ -829,15 +774,13 @@ initD3D11Surface(unsigned int nWidth, unsigned int nHeight)
 
     g_pImageDX->setCUDAcontext(g_oContext);
     g_pImageDX->setCUDAdevice(g_oDevice);
-
     return S_OK;
 }
 
 HRESULT
 freeDestSurface()
 {
-    if (g_pImageDX)
-    {
+    if (g_pImageDX){
         delete g_pImageDX;
         g_pImageDX = NULL;
     }
@@ -851,12 +794,13 @@ HRESULT drawScene(int field_num)
     HRESULT hr = S_OK;
 
     // render image
-    g_pImageDX->render(field_num);
+	g_pImageDX->render(field_num);
     hr = g_pSwapChain->Present(g_bUseVsync ? DXGI_SWAP_EFFECT_SEQUENTIAL : DXGI_SWAP_EFFECT_DISCARD, 0);
 
     return S_OK;
 }
-
+bool isDequeued_0 = false;
+bool isDequeued_1 = false;
 // Launches the CUDA kernels to fill in the texture data
 void renderVideoFrame(HWND hWnd)
 {
@@ -864,46 +808,79 @@ void renderVideoFrame(HWND hWnd)
     int bIsProgressive = 1, bFPSComputed = 0;
     bool bFramesDecoded = false;
 
-	if (0 != g_pFrameQueue_0)
-    {
-        // if not running, we simply don't copy new frames from the decoder
-        if (g_bRunning)
-        {
-            bFramesDecoded = copyDecodedFrameToTexture(nRepeatFrame, true, &bIsProgressive, g_pFrameQueue_0, g_pVideoSource_0, g_pVideoParser_0, g_pVideoDecoder_0, 0);
-        }
-    }
-    else
-    {
-        return;
-    }
-
-	if (0 != g_pFrameQueue_1)
-	{
-		// if not running, we simply don't copy new frames from the decoder
-		if (g_bRunning)
+	if (isDequeued_0 == false){
+		if (0 != g_pFrameQueue_0)
 		{
-			bFramesDecoded = copyDecodedFrameToTexture(nRepeatFrame, true, &bIsProgressive, g_pFrameQueue_1, g_pVideoSource_1, g_pVideoParser_1, g_pVideoDecoder_1, 3);
+			// if not running, we simply don't copy new frames from the decoder
+			if (g_bRunning)
+			{
+				bFramesDecoded = copyDecodedFrameToTexture(nRepeatFrame, true, &bIsProgressive, g_pFrameQueue_0, g_pVideoSource_0, g_pVideoParser_0, g_pVideoDecoder_0, 0);
+				isDequeued_0 = true;
+			}
+		}
+		else
+		{
+			return;
 		}
 	}
-	else
-	{
-		return;
-	}
-
-    if (bFramesDecoded)
-    {       
-		for (int i = 0; i < nRepeatFrame; i++) {
-			drawScene(i + 0);
-			computeFPS(hWnd);
+	if (isDequeued_1 == false){
+		if (0 != g_pFrameQueue_1)
+		{
+			// if not running, we simply don't copy new frames from the decoder
+			if (g_bRunning)
+			{
+				bFramesDecoded = copyDecodedFrameToTexture(nRepeatFrame, true, &bIsProgressive, g_pFrameQueue_1, g_pVideoSource_1, g_pVideoParser_1, g_pVideoDecoder_1, 3);
+				isDequeued_1 = true;
+			}
 		}
+		else
+		{
+			return;
+		}
+	}
+	nRepeatFrame = 2;
+    //if (bFramesDecoded){   
+	if (isDequeued_0 == true && isDequeued_1 == true){
+		/*
+		// do your own cuda process
+		for (int i = 0; i < nRepeatFrame; i++) {
+			combine((unsigned int*)g_pInteropFrame_0[i], 
+				(unsigned int*)g_pInteropFrame_1[i], 
+				(unsigned int*)g_pInteropFrame_2[i], 
+				4096, 
+				2048);
+		}*/
 
 		for (int i = 0; i < nRepeatFrame; i++) {
-			drawScene(i + 3);
+			unsigned int nWidth = g_pVideoDecoder_0->targetWidth();
+			unsigned int nHeight = g_pVideoDecoder_0->targetHeight();
+
+			g_backBufferArray = 0;
+			// map the texture surface
+			g_pImageDX->map(&g_backBufferArray, i);
+	
+			CUDA_MEMCPY2D memcpy2D = { 0 };
+			memcpy2D.srcMemoryType = CU_MEMORYTYPE_DEVICE;
+			memcpy2D.srcDevice = g_pInteropFrame_0[i];
+			memcpy2D.srcPitch = nWidth * 4;
+			memcpy2D.dstMemoryType = CU_MEMORYTYPE_ARRAY;
+			memcpy2D.dstArray = g_backBufferArray;
+			memcpy2D.dstPitch = nWidth * 4;
+			memcpy2D.WidthInBytes = nWidth * 4;
+			memcpy2D.Height = nHeight;
+
+			// clear the surface to solid white
+			checkCudaErrors(cuMemcpy2D(&memcpy2D));
+			// unmap the texture surface
+			g_pImageDX->unmap(i);
+
+			drawScene(i);
 			computeFPS(hWnd);
 		}
 
 		bFPSComputed = 1;        
-
+		isDequeued_0 = false;
+		isDequeued_1 = false;
         // Pass the Windows handle to show Frame Rate on the window title
         if (!bFPSComputed)
         {
@@ -1120,4 +1097,3 @@ static LRESULT WINAPI MsgProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
     return DefWindowProc(hWnd, msg, wParam, lParam);
 }
-
