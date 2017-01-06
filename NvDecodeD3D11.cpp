@@ -535,8 +535,8 @@ bool copyDecodedFrameToTexture(unsigned int &nRepeats, int bUseInterop, int *pbI
 // 			// unmap the texture surface
 // 			g_pImageDX->unmap(active_field, 0);
 // 		}
-// 	}
-// 	if (isDequeueOK){
+	}
+	if (isDequeueOK){
 		for (int active_field = 0; active_field < nRepeats; active_field++)
 		{
 			unsigned int nWidth = g_pVideoDecoder_0->targetWidth();
@@ -545,7 +545,7 @@ bool copyDecodedFrameToTexture(unsigned int &nRepeats, int bUseInterop, int *pbI
 			g_backBufferArray = 0;
 			// map the texture surface
 			g_pImageDX->map(&g_backBufferArray, active_field, offset);
-			CUDA_MEMCPY2D memcpy2D = { 0 };
+ 			CUDA_MEMCPY2D memcpy2D = { 0 };
 			memcpy2D.srcMemoryType = CU_MEMORYTYPE_DEVICE;
 			memcpy2D.srcDevice = g_pInteropFrame[active_field];
 			memcpy2D.srcPitch = nWidth * 4;
@@ -891,9 +891,14 @@ void renderVideoFrame(HWND hWnd)
 	}
 
     if (bFramesDecoded)
-    {        
+    {       
 		for (int i = 0; i < nRepeatFrame; i++) {
 			drawScene(i + 0);
+			computeFPS(hWnd);
+		}
+
+		for (int i = 0; i < nRepeatFrame; i++) {
+			drawScene(i + 3);
 			computeFPS(hWnd);
 		}
 

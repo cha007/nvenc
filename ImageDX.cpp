@@ -175,6 +175,40 @@ ImageDX::clear(unsigned char nClearColor)
 	checkCudaErrors(cuMemFree(pData));
 }
 
+// void
+// ImageDX::setColor(CUdeviceptr pData)
+// {
+// 	// Can only be cleared if surface is a CUDA resource
+// 	assert(bIsCudaResource_);
+// 
+// 	int nFrames = bVsync_ ? 3 : 1;
+// 	size_t       nSize = nWidth_ * nHeight_ * 4;
+// 
+// 	checkCudaErrors(cuGraphicsMapResources(nFrames, aCudaResource_, 0));
+// 	for (int field_num = 0; field_num < nFrames; field_num++)
+// 	{
+// 		//checkCudaErrors(cuGraphicsResourceGetMappedPointer(&pData, &nSize, aCudaResource_[field_num]));
+// 		CUarray array;
+// 		checkCudaErrors(cuGraphicsSubResourceGetMappedArray(&array, aCudaResource_[field_num], 0, 0));
+// 		assert(0 != array);
+// 
+// 		CUDA_MEMCPY2D memcpy2D = { 0 };
+// 		memcpy2D.srcMemoryType = CU_MEMORYTYPE_DEVICE;
+// 		memcpy2D.srcDevice = pData;
+// 		memcpy2D.srcPitch = nWidth_ * 4;
+// 		memcpy2D.dstMemoryType = CU_MEMORYTYPE_ARRAY;
+// 		memcpy2D.dstArray = array;
+// 		memcpy2D.dstPitch = nWidth_ * 4;
+// 		memcpy2D.WidthInBytes = nWidth_ * 4;
+// 		memcpy2D.Height = nHeight_;
+// 
+// 		// clear the surface to solid white
+// 		checkCudaErrors(cuMemcpy2D(&memcpy2D));
+// 	}
+// 
+// 	checkCudaErrors(cuGraphicsUnmapResources(nFrames, aCudaResource_, 0));
+// }
+
 unsigned int
 ImageDX::width()
 const
